@@ -89,6 +89,9 @@ public struct Shell: Sendable {
             _ = try await validateSudoAuthentication()
             return nil
         } catch {
+            if let password = env("XCODES_SUDO_PASSWORD"), password.isEmpty == false {
+                return password.hasSuffix("\n") ? password : password + "\n"
+            }
             return try await passwordInput()
         }
     }

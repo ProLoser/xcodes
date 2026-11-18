@@ -16,6 +16,38 @@ private func configureRainbowForTest(outputTarget: OutputTarget, enabled: Bool) 
 final class XcodesKitTests: XCTestCase {
     static let mockXcode = Xcode(version: Version("0.0.0")!, url: URL(string: "https://apple.com/xcode.xip")!, filename: "mock.xip", releaseDate: nil)
 
+    func testAuthenticateSudoUsesEnvironmentPasswordBeforePrompt() async throws {
+        let promptCallCount = LockedBox(0)
+        Current.shell.validateSudoAuthentication = {
+            throw ProcessExecutionError(process: Process(), standardOutput: nil, standardError: nil)
+        }
+        Current.shell.env = { key in key == "XCODES_SUDO_PASSWORD" ? "secret" : nil }
+
+        let password = try await Current.shell.authenticateSudoerIfNecessaryAsync {
+            promptCallCount.increment()
+            return "prompted\n"
+        }
+
+        XCTAssertEqual(password, "secret\n")
+        XCTAssertEqual(promptCallCount.value, 0)
+    }
+
+    func testAuthenticateSudoFallsBackToPromptForEmptyEnvironmentPassword() async throws {
+        let promptCallCount = LockedBox(0)
+        Current.shell.validateSudoAuthentication = {
+            throw ProcessExecutionError(process: Process(), standardOutput: nil, standardError: nil)
+        }
+        Current.shell.env = { _ in "" }
+
+        let password = try await Current.shell.authenticateSudoerIfNecessaryAsync {
+            promptCallCount.increment()
+            return "prompted\n"
+        }
+
+        XCTAssertEqual(password, "prompted\n")
+        XCTAssertEqual(promptCallCount.value, 1)
+    }
+
     var xcodeList: XcodeList!
     var xcodeInstaller: XcodeInstaller!
     var sessionService: AppleSessionService!
